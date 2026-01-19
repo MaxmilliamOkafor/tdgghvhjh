@@ -222,9 +222,27 @@ body::-webkit-scrollbar-thumb {
   animation: none;
 }
 
+.status-indicator.error .status-text {
+  color: var(--error);
+}
+
 .status-indicator.working .status-dot {
   background: var(--warning);
   animation: pulse 0.5s infinite;
+}
+
+.status-indicator.success .status-dot {
+  background: var(--success);
+  animation: none;
+  box-shadow: 0 0 8px var(--success);
+}
+
+.status-indicator.success .status-text {
+  color: var(--success);
+}
+
+.status-indicator.success {
+  background: rgba(34, 197, 94, 0.1);
 }
 
 /* ============ LOGIN SECTION ============ */
