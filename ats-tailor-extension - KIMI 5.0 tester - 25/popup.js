@@ -1399,38 +1399,49 @@ class ATSTailor {
   }
 
   updateUI() {
-    const loginSection = document.getElementById('loginSection');
-    const mainSection = document.getElementById('mainSection');
-    const userEmail = document.getElementById('userEmail');
-    
-    if (!this.session) {
-      loginSection?.classList.remove('hidden');
-      mainSection?.classList.add('hidden');
-      this.setStatus('Login Required', 'error');
-    } else {
-      loginSection?.classList.add('hidden');
-      mainSection?.classList.remove('hidden');
-      if (userEmail) userEmail.textContent = this.session.user?.email || 'Logged in';
-      this.setStatus('Ready', 'ready');
-    }
-    
-    document.getElementById('todayCount').textContent = this.stats.today;
-    document.getElementById('totalCount').textContent = this.stats.total;
-    document.getElementById('avgTime').textContent = this.stats.avgTime > 0 ? `${Math.round(this.stats.avgTime)}s` : '0s';
-    
-    const autoTailorToggle = document.getElementById('autoTailorToggle');
-    if (autoTailorToggle) {
-      autoTailorToggle.checked = this.autoTailorEnabled;
-    }
-    
-    const hasDocuments = this.generatedDocuments.cv || 
-                         this.generatedDocuments.coverLetter || 
-                         this.generatedDocuments.cvPdf || 
-                         this.generatedDocuments.coverPdf;
-    if (hasDocuments) {
-      document.getElementById('documentsCard')?.classList.remove('hidden');
-      this.updateDocumentDisplay();
-      this.updatePreviewContent();
+    try {
+      const loginSection = document.getElementById('loginSection');
+      const mainSection = document.getElementById('mainSection');
+      const userEmail = document.getElementById('userEmail');
+      const userAvatar = document.getElementById('userAvatar');
+      
+      if (!this.session) {
+        loginSection?.classList.remove('hidden');
+        mainSection?.classList.add('hidden');
+        this.setStatus('Login Required', 'error');
+      } else {
+        loginSection?.classList.add('hidden');
+        mainSection?.classList.remove('hidden');
+        if (userEmail) userEmail.textContent = this.session.user?.email || 'Logged in';
+        if (userAvatar) userAvatar.textContent = (this.session.user?.email?.[0] || 'U').toUpperCase();
+        this.setStatus('Ready', 'ready');
+      }
+      
+      // Update stats with null checks
+      const todayCount = document.getElementById('todayCount');
+      const totalCount = document.getElementById('totalCount');
+      const avgTime = document.getElementById('avgTime');
+      
+      if (todayCount) todayCount.textContent = this.stats?.today ?? 0;
+      if (totalCount) totalCount.textContent = this.stats?.total ?? 0;
+      if (avgTime) avgTime.textContent = this.stats?.avgTime > 0 ? `${Math.round(this.stats.avgTime)}s` : '0s';
+      
+      const autoTailorToggle = document.getElementById('autoTailorToggle');
+      if (autoTailorToggle) {
+        autoTailorToggle.checked = this.autoTailorEnabled;
+      }
+      
+      const hasDocuments = this.generatedDocuments?.cv || 
+                           this.generatedDocuments?.coverLetter || 
+                           this.generatedDocuments?.cvPdf || 
+                           this.generatedDocuments?.coverPdf;
+      if (hasDocuments) {
+        document.getElementById('documentsCard')?.classList.remove('hidden');
+        this.updateDocumentDisplay();
+        this.updatePreviewContent();
+      }
+    } catch (e) {
+      console.error('[ATS Tailor] updateUI error:', e);
     }
   }
 
@@ -1834,8 +1845,11 @@ class ATSTailor {
         func: extractJobInfoFromPageInjected,
       });
 
-      if (results?.[0]?.result) {
-        this.currentJob = results[0].result;
+      const result = results?.[0]?.result;
+      
+      // Validate that we have meaningful job data (at least title or description)
+      if (result && (result.title || result.description)) {
+        this.currentJob = result;
         
         // PERFORMANCE: Limit JD length for faster processing
         if (this.currentJob.description && this.currentJob.description.length > MAX_JD_LENGTH) {
@@ -1844,13 +1858,21 @@ class ATSTailor {
         
         await chrome.storage.local.set({ ats_lastJob: this.currentJob });
         this.updateJobDisplay();
-        this.setStatus('Job found!', 'ready');
+        
+        // Set appropriate status based on data completeness
+        if (result.title && result.description) {
+          this.setStatus('Job found!', 'success');
+        } else if (result.title) {
+          this.setStatus('Job detected', 'ready');
+        } else {
+          this.setStatus('Partial match', 'ready');
+        }
         return true;
       }
 
       this.currentJob = null;
       this.updateJobDisplay();
-      this.setStatus('No job found on page', 'error');
+      this.setStatus('No job found', 'error');
       return false;
     } catch (error) {
       console.error('Job detection error:', error);
@@ -2877,12 +2899,14 @@ class ATSTailor {
         `Done in ${elapsed.toFixed(1)}s! ${finalScore}% keyword match.`, 
         'success'
       );
-      this.setStatus('Complete', 'ready');
+      this.setStatus('Complete!', 'success');
 
     } catch (error) {
       console.error('Tailoring error:', error);
-      this.showToast(error.message || 'Failed', 'error');
-      this.setStatus('Error', 'error');
+      const errorMsg = error?.message || 'Tailoring failed';
+      this.showToast(errorMsg, 'error');
+      // Don't set error status - keep showing the job was found
+      this.setStatus('Try again', 'ready');
     } finally {
       btn.disabled = false;
       btn.querySelector('.btn-text').textContent = 'Extract & Apply Keywords to CV';
